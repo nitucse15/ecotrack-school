@@ -23,7 +23,10 @@ st.markdown("""
     padding-top: 3rem !important;
 }
 
-
+/* Hide Streamlit default UI */
+MainMenu {visibility: hidden;}
+header {visibility: hidden;}
+footer {visibility: hidden;}
 
 /* Remove empty markdown bars */
 .stMarkdown:empty {
