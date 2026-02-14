@@ -29,7 +29,7 @@ st.markdown("""
     padding-top: 2rem;
 }
 
-#MainMenu, header, footer {
+#MainMenu,  footer {
     visibility: hidden;
 }
 
