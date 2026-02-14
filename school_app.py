@@ -13,11 +13,7 @@ st.set_page_config(
 )
 
 DATA_FILE = "eco_data.csv"
-
-# ---------------- SESSION STATE ---------------- #
-
-if "school_logo" not in st.session_state:
-    st.session_state.school_logo = None
+LOGO_FILE = "logo.jpg"
 
 
 # ---------------- STYLE ---------------- #
@@ -33,8 +29,9 @@ st.markdown("""
     padding-top: 2rem;
 }
 
-#MainMenu {visibility: hidden;}
-footer {visibility: hidden;}
+#MainMenu, header, footer {
+    visibility: hidden;
+}
 
 .header-box {
     background: linear-gradient(90deg, #2e7d32, #66bb6a);
@@ -50,8 +47,8 @@ div.stButton > button {
     background-color: #2e7d32;
     color: white;
     border-radius: 12px;
-    padding: 12px 26px;
-    font-size: 15px;
+    padding: 12px 30px;
+    font-size: 16px;
     font-weight: bold;
 }
 
@@ -66,16 +63,9 @@ div.stButton > button:hover {
 # ---------------- LOAD DATA ---------------- #
 
 if os.path.exists(DATA_FILE):
-
     df = pd.read_csv(DATA_FILE)
-
-    df["Date"] = pd.to_datetime(
-        df["Date"],
-        errors="coerce"
-    ).dt.date
-
+    df["Date"] = pd.to_datetime(df["Date"]).dt.date
 else:
-
     df = pd.DataFrame(
         columns=["Date", "Lights", "Taps", "Paper", "Food", "Score"]
     )
@@ -85,42 +75,34 @@ else:
 
 st.sidebar.header("🏫 School Settings")
 
-logo_file = st.sidebar.file_uploader(
-    "Upload Logo",
-    ["png", "jpg", "jpeg"]
-)
-
-if logo_file is not None:
-    st.session_state.school_logo = logo_file
-
 school = st.sidebar.text_input("School Name", "Chrysalis High")
 cls = st.sidebar.text_input("Class", "7B")
 
 st.sidebar.markdown("---")
 
-
-# Export Button
+# Export
 if not df.empty:
-
     csv = df.to_csv(index=False).encode("utf-8")
 
     st.sidebar.download_button(
-        "⬇ Export All Data",
+        "⬇ Export Data",
         csv,
         "eco_data.csv",
         "text/csv"
     )
 
-
 # Reset Button
-if st.sidebar.button("🗑 Reset All Data"):
+if st.sidebar.button("🔄 Reset All Data"):
 
     if os.path.exists(DATA_FILE):
         os.remove(DATA_FILE)
 
-    st.session_state.school_logo = None
+    for key in ["lights", "taps", "paper", "food", "selected_date"]:
+        if key in st.session_state:
+            del st.session_state[key]
 
-    st.sidebar.success("Data Reset!")
+    st.success("All data reset!")
+    st.rerun()
 
 
 # ---------------- HEADER ---------------- #
@@ -138,8 +120,10 @@ st.markdown("""
 c1, c2 = st.columns([1,4])
 
 with c1:
-    if st.session_state.school_logo:
-        st.image(st.session_state.school_logo, width=120)
+    if os.path.exists(LOGO_FILE):
+        st.image(LOGO_FILE, width=120)
+    else:
+        st.warning("⚠ Logo not found!")
 
 with c2:
     st.subheader(f"🏫 {school}")
@@ -150,17 +134,44 @@ with c2:
 
 st.markdown("### 📅 Select Date")
 
-selected_date = st.date_input("", date.today())
+selected_date = st.date_input(
+    "",
+    date.today(),
+    key="selected_date"
+)
 
 
-# ---------------- INPUT ---------------- #
+# ---------------- INPUTS ---------------- #
 
 st.subheader("♻️ Today's Environment Check")
 
-lights = st.number_input("💡 Lights Left ON", 0, step=1)
-taps = st.number_input("🚰 Taps Left Open", 0, step=1)
-paper = st.number_input("📄 Paper Wasted", 0, step=1)
-food = st.number_input("🍽 Food Wasted", 0, step=1)
+lights = st.number_input(
+    "💡 Lights Left ON",
+    min_value=0,
+    step=1,
+    key="lights"
+)
+
+taps = st.number_input(
+    "🚰 Taps Left Open",
+    min_value=0,
+    step=1,
+    key="taps"
+)
+
+paper = st.number_input(
+    "📄 Paper Wasted",
+    min_value=0,
+    step=1,
+    key="paper"
+)
+
+food = st.number_input(
+    "🍽 Food Wasted",
+    min_value=0,
+    step=1,
+    key="food"
+)
 
 
 # ---------------- BUTTON ---------------- #
@@ -172,17 +183,14 @@ analyze = st.button("📊 Analyze & Save")
 
 if analyze:
 
-    # Score Calculation
     score = 100
-
     score -= lights * 2
     score -= taps * 3
-    score -= paper
+    score -= paper * 1
     score -= food * 4
 
     score = max(score, 0)
 
-    # New Row
     new_row = {
         "Date": selected_date,
         "Lights": lights,
@@ -192,16 +200,11 @@ if analyze:
         "Score": score
     }
 
-    # Remove old same-date entry
     df = df[df["Date"] != selected_date]
+    df = pd.concat([df, pd.DataFrame([new_row])])
 
-    # Add to end
-    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-
-    # Sort by date (Ascending → newest last)
     df = df.sort_values("Date")
 
-    # Save
     df.to_csv(DATA_FILE, index=False)
 
     st.success("✅ Data Saved!")
@@ -218,7 +221,7 @@ if analyze:
     else:
         st.error(f"⚠ Needs Improvement! {score}/100")
 
-    st.progress(score/100)
+    st.progress(score / 100)
 
 
     # -------- TIPS -------- #
@@ -237,7 +240,7 @@ if analyze:
         tips.append("Reduce paper usage")
 
     if food > 0:
-        tips.append("Avoid food wastage")
+        tips.append("Take only required food")
 
     if tips:
         for t in tips:
@@ -261,17 +264,18 @@ if not df.empty:
 
     if not df_week.empty:
 
-        # Convert to lists (safe for matplotlib)
-        dates = df_week["Date"].dt.strftime("%Y-%m-%d").tolist()
+        df_week = df_week.sort_values("Date")
 
-        scores = df_week["Score"].tolist()
+        dates = df_week["Date"].dt.strftime("%Y-%m-%d").tolist()
+        scores = df_week["Score"].astype(float).tolist()
+
         lights_l = df_week["Lights"].tolist()
         taps_l = df_week["Taps"].tolist()
         paper_l = df_week["Paper"].tolist()
         food_l = df_week["Food"].tolist()
 
 
-        # ----- SCORE GRAPH -----
+        # -------- SCORE GRAPH -------- #
 
         st.markdown("### 📉 Daily Eco Score")
 
@@ -281,30 +285,32 @@ if not df.empty:
 
         ax1.set_xlabel("Date")
         ax1.set_ylabel("Score")
+        ax1.set_title("Eco Score Trend")
 
         plt.xticks(rotation=45)
 
         st.pyplot(fig1)
 
 
-        # ----- BAR GRAPH -----
+        # -------- BAR GRAPH -------- #
 
-        st.markdown("### 📊 Resource Usage")
+        st.markdown("### 📊 Daily Resource Usage")
 
         fig2, ax2 = plt.subplots()
 
         x = list(range(len(dates)))
-        w = 0.2
+        width = 0.2
 
-        ax2.bar([i-1.5*w for i in x], lights_l, w, label="Lights")
-        ax2.bar([i-0.5*w for i in x], taps_l, w, label="Taps")
-        ax2.bar([i+0.5*w for i in x], paper_l, w, label="Paper")
-        ax2.bar([i+1.5*w for i in x], food_l, w, label="Food")
+        ax2.bar([i - 1.5*width for i in x], lights_l, width, label="Lights")
+        ax2.bar([i - 0.5*width for i in x], taps_l, width, label="Taps")
+        ax2.bar([i + 0.5*width for i in x], paper_l, width, label="Paper")
+        ax2.bar([i + 1.5*width for i in x], food_l, width, label="Food")
 
         ax2.set_xticks(x)
         ax2.set_xticklabels(dates, rotation=45)
 
         ax2.set_ylabel("Count")
+        ax2.set_title("Resource Usage")
 
         ax2.legend()
 
